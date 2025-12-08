@@ -14,7 +14,7 @@ jobs:
 
     env:
       AWS_REGION: us-east-1
-      ECR_REPO: 847478342.dkr.ecr.us-east-1.amazonaws.com/myapp
+      ECR_REPOSITORY: 847478342.dkr.ecr.us-east-1.amazonaws.com/myapp
       IMAGE_TAG: ${{ github.sha }}
 
     steps:
@@ -45,7 +45,7 @@ jobs:
       - name: Build, tag, and push image to ECR
         run: |
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REPOSITORY:$IMAGE_TAG
+          docker tag "$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REPOSITORY:$IMAGE_TAG"
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
