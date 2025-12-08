@@ -1,0 +1,76 @@
+name: CI-CD Pipeline
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+      ECR_REPOSITORY: fastapi-gists
+      IMAGE_TAG: latest
+
+    steps:
+      # --------------------------
+      # 1. CHECKOUT CODE
+      # --------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # --------------------------
+      # 2. SETUP PYTHON & RUN TESTS
+      # --------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          cd app
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run pytest
+        run: |
+          cd app
+          pytest
+
+      # --------------------------
+      # 3. CONFIGURE AWS CREDENTIALS
+      # --------------------------
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::147935447701:role/gitRole
+          aws-region: us-east-1
+
+      # --------------------------
+      # 4. LOGIN TO ECR
+      # --------------------------
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # --------------------------
+      # 5. BUILD & PUSH DOCKER IMAGE
+      # --------------------------
+      - name: Build, tag, and push image to ECR
+        run: |
+          docker build -t $ECR_REPOSITORY .
+          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      # --------------------------
+      # 6. UPDATE ECS SERVICE
+      # --------------------------
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: terraform/ecs-task.json
+          service: fastapi-gists-service
+          cluster: fastapi-gists-cluster
+          wait-for-service-stability: true
