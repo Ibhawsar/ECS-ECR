@@ -7,7 +7,10 @@ on:
 jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
-
+   
+    permissions:
+      id-token: write
+      contents: read
 
 
     steps:
@@ -31,17 +34,15 @@ jobs:
           cd app
           pytest
 
-      
-
-
-#  AWS CREDENTIALS
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::670219536150:role/GitRole
+          role-to-assume: arn:aws:iam::016963197464:role/GitRole
           aws-region: us-east-1
+
       - name: Debug AWS identity
         run: aws sts get-caller-identity
+        
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -50,10 +51,6 @@ jobs:
           docker build -t $ECR_REPOSITORY .
           docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      # --------------------------
-      # 6. UPDATE ECS SERVICE
-      # --------------------------
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
