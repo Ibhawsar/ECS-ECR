@@ -13,7 +13,7 @@ jobs:
     steps:
  
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -43,7 +43,7 @@ jobs:
       - name: Debug AWS identity
         run: aws sts get-caller-identity
       - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v4
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, tag, and push image to ECR
         run: |
@@ -55,7 +55,7 @@ jobs:
       # 6. UPDATE ECS SERVICE
       # --------------------------
       - name: Deploy to Amazon ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v4
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: terraform/ecs-task.json
           service: fastapi-gists-service
