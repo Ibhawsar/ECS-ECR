@@ -1,62 +1,146 @@
-name: CI-CD Pipeline
+# name: CI-CD Pipeline
+
+# on:
+#   push:
+#     branches: ["main"]
+    
+# jobs:
+#   build-test-deploy:
+#     runs-on: ubuntu-latest
+   
+#     permissions:
+#       id-token: write
+#       contents: read
+
+#     env:
+      
+#       AWS_REGION: us-east-1
+#       ECR_REPOSITORY: myapp
+#       IMAGE_TAG: ${{ github.sha }}
+
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v3
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: "3.10"
+#       - name: Install dependencies
+#         run: |
+#           cd app
+#           pip install -r requirements.txt
+#           pip install pytest
+#       - name: Run pytest
+#         run: |
+#           cd app
+#           pytest
+
+
+#       - name: Configure AWS Credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           role-to-assume: arn:aws:iam::161862142232:role/GirRole
+#           aws-region: us-east-1
+
+#       - name: Login to Amazon ECR
+#         uses: aws-actions/amazon-ecr-login@v2
+
+
+#       - name: Build, tag, and push image to ECR
+#         run: |
+#           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+#           docker tag "$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REPOSITORY:$IMAGE_TAG"
+#           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+
+#       - name: Deploy to Amazon ECS
+#         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+#         with:
+#           task-definition: terraform/ecs-task.json
+#           service: fastapi-gists-service
+#           cluster: fastapi-gists-cluster
+#           wait-for-service-stability: true
+
+name: CI/CD Pipeline
 
 on:
   push:
     branches: ["main"]
-    
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
+
 jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
-   
-    permissions:
-      id-token: write
-      contents: read
-
-    env:
-      
-      AWS_REGION: us-east-1
-      ECR_REPOSITORY: myapp
-      IMAGE_TAG: ${{ github.sha }}
 
     steps:
+      # ---- CHECKOUT ----
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      # ---- PYTHON SETUP ----
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.11"
+
       - name: Install dependencies
         run: |
           cd app
           pip install -r requirements.txt
           pip install pytest
-      - name: Run pytest
+
+      - name: Run tests
         run: |
           cd app
-          pytest
+          pytest -q
 
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      # ---- OIDC AWS LOGIN ----
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v3
         with:
-          role-to-assume: arn:aws:iam::161862142232:role/GirRole
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEPLOY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-
-      - name: Build, tag, and push image to ECR
+      # ---- LOGIN TO ECR ----
+      - name: Login to ECR
         run: |
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag "$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+            | docker login --username AWS --password-stdin \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
+      # ---- BUILD AND PUSH IMAGE ----
+      - name: Build and Push Docker image
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
+          echo "Building image: $IMAGE"
+
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      # ---- FORCE ECS DEPLOY ----
       - name: Deploy to Amazon ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: terraform/ecs-task.json
-          service: fastapi-gists-service
-          cluster: fastapi-gists-cluster
-          wait-for-service-stability: true
+        env:
+          CLUSTER: ${{ secrets.ECS_CLUSTER_NAME }}
+          SERVICE: ${{ secrets.ECS_SERVICE_NAME }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "Deploying new version to ECS..."
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --force-new-deployment
+
