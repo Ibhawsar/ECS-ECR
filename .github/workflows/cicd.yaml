@@ -36,7 +36,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::016963197464:role/GitRole
+          role-to-assume: arn:aws:iam::161862142232:role/GirRole
           aws-region: us-east-1
       - name: Debug AWS identity
         run: aws sts get-caller-identity
