@@ -13,8 +13,9 @@ jobs:
       contents: read
 
     env:
+      
       AWS_REGION: us-east-1
-      ECR_REPOSITORY: 847478342.dkr.ecr.us-east-1.amazonaws.com/myapp
+      ECR_REPOSITORY: myapp
       IMAGE_TAG: ${{ github.sha }}
 
     steps:
@@ -33,20 +34,32 @@ jobs:
         run: |
           cd app
           pytest
+
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::161862142232:role/GirRole
           aws-region: us-east-1
-      - name: Debug AWS identity
-        run: aws sts get-caller-identity
+
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
+
+
       - name: Build, tag, and push image to ECR
         run: |
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag "$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          IMAGE:"${AWS_ACCOUNT_ID}.dir.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          IMAGE:$(echo "$IMAGE" | tr -d '[:apce:]')
+          echo "IMAGE=$IMAGE"
+
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          
+          # docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+          # docker tag "$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REPOSITORY:$IMAGE_TAG"
+          # docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
