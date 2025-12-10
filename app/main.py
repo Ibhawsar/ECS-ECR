@@ -24,13 +24,13 @@ async def get_user_gists(username: str):
     
     gists = response.json()
 
-    formatted = [
-        {
-            "id" : gist["id"],
-            "description": gist["description"],
-            "url": gist["html_url"]
-        }
-        for gist in gists
-    ]
+    # formatted = [
+    #     {
+    #         "id" : gist["id"],
+    #         "description": gist["description"],
+    #         "url": gist["html_url"]
+    #     }
+    #     for gist in gists
+    # ]
 
-    return {"user" : username, "gists" : formatted}
+    return {"user" : username, "gists" : gist}
