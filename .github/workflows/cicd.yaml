@@ -102,21 +102,20 @@ jobs:
           cd app
           pytest -q
 
-      # ---- OIDC AWS LOGIN ----
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v3
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEPLOY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # ---- LOGIN TO ECR ----
+
       - name: Login to ECR
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
             | docker login --username AWS --password-stdin \
               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
-      # ---- BUILD AND PUSH IMAGE ----
+
       - name: Build and Push Docker image
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -124,14 +123,17 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          IMAGE="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
-          echo "Building image: $IMAGE"
+          IMAGE_SHA="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          IMAGE_LATEST="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
 
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
+          echo "Building images: $IMAGE_SHA and $IMAGE_LATEST"
 
-      # ---- FORCE ECS DEPLOY ----
+          docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
+
+          docker push "$IMAGE_SHA"
+          docker push "$IMAGE_LATEST"
+
       - name: Deploy to Amazon ECS
         env:
           CLUSTER: ${{ secrets.ECS_CLUSTER_NAME }}
