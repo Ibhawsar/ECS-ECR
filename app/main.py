@@ -33,4 +33,4 @@ async def get_user_gists(username: str):
     #     for gist in gists
     # ]
 
-    return {"user" : username, "gists" : gist}
+    return {"user" : username, "gists" : gists}
